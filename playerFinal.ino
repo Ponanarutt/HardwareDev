@@ -43,6 +43,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 LiquidCrystal_I2C lcd(LCD_ADDRESS, 16, 2);
 
 // 📌 Game Variables
+int winning = 0;  // 0 = Not won, 1 = Won
 int gameState = 0; // 0 = Waiting, 1 = Playing, 2 = Game End
 bool gameWon = false;
 int lastDrawnNumber = -1;
@@ -222,12 +223,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
             lcd.print("Bingo Started!");
             tft.fillScreen(ST7735_BLACK);
             displayBingoCardTFT();
-    } else if (gameState == 2) {
+} else if (gameState == 2) {
+    // ✅ Only show "YOU LOSE!" if the player DID NOT win
+    if (winning == 0) {
         Serial.println("Forced transition to GAME OVER (2). Showing 'YOU LOSE!'");
         displayLoseScreen();
         delay(3000);  // ✅ Show "YOU LOSE!" before resetting
-        resetGame();
     }
+    
+    resetGame();  // ✅ Reset everything after game end
+}
     }
 
     if (String(topic) == "b6510503735/bingo/number") {
@@ -309,6 +314,7 @@ void setup() {
 void resetGame() {
     gameState = 0;
     gameWon = false;
+    winning = 0; // ✅ Reset winning state for next round
 
     lastDrawnNumber = -1;
 
@@ -504,11 +510,16 @@ void loop() {
 
         if (gameState == 0) {
             displayState0();
+            winning = 0; // ✅ Reset winning state when waiting
         } else if (gameState == 1) {
             displayBingoCardTFT();
         } else if (gameState == 2) {
-            displayState2();
-            resetGame();
+            // ✅ Only show "YOU LOSE!" if the player DID NOT win
+            if (winning == 0) {
+                Serial.println("Forced transition to GAME OVER (2). Showing 'YOU LOSE!'");
+                displayLoseScreen();
+            }
+            resetGame();  // ✅ Reset everything after game end
         }
     }
 
@@ -521,18 +532,22 @@ void loop() {
         // 📌 Wait for button press to claim BINGO
         while (millis() - winStartTime < claimTimeout) {
             if (digitalRead(BUTTON_PIN) == LOW && millis() - lastPressTime > debounceDelay) {
-                sendBingoWin();  // Send "99" to MQTT
+                sendBingoWin();  // ✅ Send "99" to MQTT
                 displayWinnerScreen();
                 lastPressTime = millis();
-                resetGame();
-                return; // Exit loop to prevent losing
+
+                winning = 1; // ✅ Mark player as won
+                gameState = 2;  // ✅ Force game state to 2 (GAME OVER)
+                return; // ✅ Exit loop to prevent losing screen
             }
         }
 
-        // 📌 If timeout occurs, transition to STATE 2 (YOU LOSE)
-        Serial.println("Time's up! YOU LOSE.");
-        displayLoseScreen();
-        delay(3000); // Show message for 3 seconds
-        resetGame();
+        // 📌 If timeout occurs, only show "YOU LOSE!" if still in game state 1
+        if (gameState == 1) {  
+            Serial.println("Time's up! YOU LOSE.");
+            displayLoseScreen();
+            delay(3000);
+            resetGame();
+        }
     }
 }
