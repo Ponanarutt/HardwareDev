@@ -1,2 +1,4 @@
-# HardwareDev
-it contain all the code in this project
+# HardwareDev รหัส 01204114
+จัดทำโดย รุษฐนพล อูปทอง 6510503735 
+คณะ วิศวะกรรมศาสตร์ สาขา คอมพิวเตอร์
+
